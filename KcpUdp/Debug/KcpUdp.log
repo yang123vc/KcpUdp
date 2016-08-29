@@ -1,0 +1,11 @@
+﻿Build started 2016/8/29 11:05:32.
+     1>Project "D:\Documents\Visual Studio 2013\Projects\KcpUdp\KcpUdp\KcpUdp.vcxproj" on node 2 (Build target(s)).
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /D _LIB /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TC /analyze- /errorReport:prompt ikcp.c
+         ikcp.c
+     1>c:\unix_include\gnu\stubs.h(7): fatal error C1083: Cannot open include file: 'gnu/stubs-32.h': No such file or directory
+     1>Done Building Project "D:\Documents\Visual Studio 2013\Projects\KcpUdp\KcpUdp\KcpUdp.vcxproj" (Build target(s)) -- FAILED.
+
+Build FAILED.
+
+Time Elapsed 00:00:03.16
