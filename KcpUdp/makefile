@@ -1,9 +1,9 @@
 kcpserv:ikcp.o unp_simple.o time_simple.h
-	g++ Source.cpp ikcp.o unp_simple.o -o kcpserv -g
+	g++ -o kcpserv Source.cpp ikcp.o unp_simple.o -g
 ikcp.o:ikcp.h
-	g++ -c ikcp.c -o ikcp.o -g
+	g++ -c -o ikcp.o ikcp.c -g
 unp_simple.o:unp_simple.cpp
-	g++ -c unp_simple.cpp -o unp_simple.o -g
+	g++ -c -o unp_simple.o unp_simple.cpp -g
 .PHONY:clean
 clean:
 	rm -f *.o kcpserv

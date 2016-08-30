@@ -24,6 +24,9 @@
     <ClCompile Include="unp_simple.cpp">
       <Filter>Resource Files</Filter>
     </ClCompile>
+    <ClCompile Include="transer.cpp">
+      <Filter>Resource Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ikcp.h">
@@ -33,6 +36,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="time_simple.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

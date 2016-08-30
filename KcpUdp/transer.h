@@ -1,23 +1,26 @@
 #pragma once
+#include <pthread.h>
 #include "ikcp.h"
+#include <stdio.h>
+#include "time_simple.h"
+#include "unp_simple.h"
+
 class transer
 {
 public:
-	transer(IUINT32 conv, void *user);
+	transer(IUINT32 conv, void *user, int mode);
 	~transer();
 	void DoWork();
-	void Nodelay(int nodelay, int interval, int resend, int nc);
 	int Decode(const char* buff);
 private:
-	 // send info
-	bool m_recvHead;
+	 // http connect info
+	bool m_containHead;
+	char m_buffer[MAXLINE];
+	int m_posBuffer;
+	// kcpcb
 	ikcpcb* m_kcp;
+public:
+	// protect data in deque
+	pthread_mutex_t m_mutex;
 };
 
-transer::transer(IUINT32, void *user)
-{
-}
-
-transer::~transer()
-{
-}

@@ -80,11 +80,13 @@
   <ItemGroup>
     <ClCompile Include="ikcp.c" />
     <ClCompile Include="Source.cpp" />
+    <ClCompile Include="transer.cpp" />
     <ClCompile Include="unp_simple.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ikcp.h" />
     <ClInclude Include="time_simple.h" />
+    <ClInclude Include="transer.h" />
     <ClInclude Include="unp_simple.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

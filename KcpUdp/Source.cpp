@@ -21,13 +21,13 @@
 #define TIME_INTEVAL 50000
 #define TIME_EXIT 1000
 #define TIME_RECVINTEERVAL 1
+#define TIME_UPDATE_INTERVAL 10
 
 int					sockfd;
 struct sockaddr_in	servaddr, grpaddr, cliaddr;
 
 enum WorKStatus
 {	
-	WORK_RECV,
 	WORK_SEND,
 	WORK_KCPRECV,
 	WORK_DECODE,
@@ -70,7 +70,6 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 	int			total = 0;
 	int			fileSize;
 
-	IUINT32 ts = iclock();
 
 	ikcpcb *kcp1 = ikcp_create(0x11223344, (void*)0);
 	kcp1->output = udp_output;
@@ -98,43 +97,49 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 		kcp1->fastresend = 1;
 	}
 
-	WorKStatus workStatus = WORK_RECV;
+	WorKStatus workStatus = WORK_KCPRECV;
 	std::string filename;
 	bool notComplete = true;
 	bool connected = false;
 	FILE* fp = NULL;
 	int posBuff = 0;
 	bool notSend = false;
+	IUINT32 lastRecv = iclock();
+
+	IUINT32 lastUpdate = iclock();
+	ikcp_update(kcp1, lastUpdate);
 
 	while (notComplete)
 	{
-		ikcp_update(kcp1, iclock());
 
-		if (iclock() - ts > TIME_INTEVAL && true == connected)
+		if (iclock() - lastRecv > TIME_INTEVAL && true == connected)
 		{
-			printf("ERROR: time.\n");
+			printf("ERROR: time is up.\n");
 			break;
 		}
+
+		if (iclock() - lastUpdate > TIME_UPDATE_INTERVAL)
+		{
+			lastUpdate = iclock();
+			ikcp_update(kcp1, lastUpdate);
+		}
+
+		len = clilen;
+		n = recvfrom(sockfd, mesg, sizeof(mesg), 0, pcliaddr, &len);
+		if (n > 0)
+		{
+			// update the last recv time
+			lastRecv = iclock();
+			printf("INFO: recv a package.\n");
+			ikcp_input(kcp1, mesg, n);
+		}
+
 		switch (workStatus)
 		{
-		case WORK_RECV:
-			//printf("INFO: in recv.\n");
-			len = clilen;
-			n = recvfrom(sockfd, mesg, sizeof(mesg), 0, pcliaddr, &len);
-			if (n > 0)
-			{
-				// update the last recv time
-				ts = iclock();
-				printf("INFO: recv a package.\n");
-				connected = true;
-				ikcp_input(kcp1, mesg, n);
-			}
-			workStatus = WORK_KCPRECV;
-			break;
 		case WORK_KCPRECV:
 			//printf("INFO: in kcprecv.\n");
-			n = ikcp_recv(kcp1, mesg, sizeof(mesg));
-			if (n > 0)
+			posBuff = ikcp_recv(kcp1, mesg, sizeof(mesg));
+			if (posBuff > 0)
 			{
 				printf("\n***********************************************\n");
 				printf("INFO: kcprecv buff\n");
@@ -149,12 +154,12 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 			}
 			else
 			{
-				workStatus = WORK_RECV;
+				workStatus = WORK_KCPRECV;
 			}
 			break;
 		case WORK_DECODE:
 			//printf("INFO: in decode.\n");
-			n = decode(mesg, n, filename);
+			n = decode(mesg, posBuff, filename);
 			if (0 == n)
 			{
 				fp = fopen(filename.c_str(), "r");
@@ -198,7 +203,7 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 					}
 					else
 					{
-						workStatus = WORK_RECV;
+						workStatus = WORK_KCPRECV;
 					}
 				}
 			}
@@ -217,14 +222,14 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 			else
 			{
 				total += posBuff;
-				workStatus = WORK_RECV;
+				workStatus = WORK_KCPRECV;
 			}
 			break;
 		case WORK_UPDATEBUFF:
 			//printf("INFO: in updatebuff.\n");
 			if (NULL == fp)
 			{
-				workStatus = WORK_RECV;
+				workStatus = WORK_KCPRECV;
 				break;
 			}
 			//printf("INFO: in update buff.\n");
@@ -241,10 +246,10 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 			}
 			break;
 		case WORK_ERROR:
-			workStatus = WORK_RECV;
+			workStatus = WORK_KCPRECV;
 			break;
 		case WORK_COMPLETE:
-			workStatus = WORK_RECV;
+			workStatus = WORK_KCPRECV;
 			break;
 		default:
 			printf("ERROR: unknown.\n");
