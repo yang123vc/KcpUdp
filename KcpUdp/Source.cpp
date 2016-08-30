@@ -18,7 +18,7 @@
 #include "unp_simple.h"
 #include "time_simple.h"
 
-#define TIME_INTEVAL 5000
+#define TIME_INTEVAL 50000
 #define TIME_EXIT 1000
 #define TIME_RECVINTEERVAL 1
 
@@ -74,6 +74,7 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 
 	ikcpcb *kcp1 = ikcp_create(0x11223344, (void*)0);
 	kcp1->output = udp_output;
+	ikcp_setmtu(kcp1, 5600);
 
 	ikcp_wndsize(kcp1, 128, 128);
 

@@ -842,7 +842,7 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 		data += len;
 		size -= len;
 	}
-
+	// 对确认最大序列号往回的msg进行fastack
 	if (flag != 0) {
 		ikcp_parse_fastack(kcp, maxack);
 	}
