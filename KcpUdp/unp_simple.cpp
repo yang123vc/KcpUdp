@@ -71,3 +71,15 @@ Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
 	if (setsockopt(fd, level, optname, optval, optlen) < 0)
 		err_sys("setsockopt error");
 }
+
+void 
+Setnonblocking(int sockfd)
+{
+	int opts;
+	opts = fcntl(sockfd, F_GETFL);
+	if (opts<0)
+		err_sys("fcntl(sock,GETFL)");
+	opts = opts | O_NONBLOCK;
+	if (fcntl(sockfd, F_SETFL, opts)<0)
+		err_sys("error : fcntl(sock,SETFL,opts)");
+}

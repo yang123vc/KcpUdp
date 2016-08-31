@@ -18,7 +18,7 @@
 #include "unp_simple.h"
 #include "time_simple.h"
 
-#define TIME_INTEVAL 50000
+#define TIME_INTEVAL 2000
 #define TIME_EXIT 1000
 #define TIME_RECVINTEERVAL 1
 #define TIME_UPDATE_INTERVAL 10
@@ -29,8 +29,6 @@ struct sockaddr_in	servaddr, grpaddr, cliaddr;
 enum WorKStatus
 {	
 	WORK_SEND,
-	WORK_KCPRECV,
-	WORK_DECODE,
 	WORK_UPDATEBUFF,
 	WORK_ERROR,
 	WORK_COMPLETE
@@ -59,6 +57,27 @@ int decode(const char* buff, int len, std::string& filename)
 	printf("INFO: filename --- %s\n", filename.c_str());
 	delete[] iBuff;
 	return 0;
+}
+
+int getFileSize(FILE* fp)
+{
+	int ret = 0;
+	if (NULL != fp)
+	{
+		fseek(fp, 0L, SEEK_END);
+		ret = ftell(fp);
+		fseek(fp, 0L, SEEK_SET);
+	}
+	return ret;
+}
+
+void Fwrite(void* ptr, size_t size, size_t n, FILE* fp)
+{
+	int ret = fwrite(ptr, size, n, fp);
+	if (-1 == ret)
+	{
+		printf("ERROR: fwrite, error number %d.\n", errno);
+	}
 }
 
 void
@@ -97,27 +116,26 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 		kcp1->fastresend = 1;
 	}
 
-	WorKStatus workStatus = WORK_KCPRECV;
 	std::string filename;
-	bool notComplete = true;
-	bool connected = false;
 	FILE* fp = NULL;
 	int posBuff = 0;
-	bool notSend = false;
+	bool getHead = false;
 	IUINT32 lastRecv = iclock();
-
 	IUINT32 lastUpdate = iclock();
-	ikcp_update(kcp1, lastUpdate);
+	bool hasError = true;
 
-	while (notComplete)
+	// for record msg had sent
+	FILE* msg_fp = fopen("send.txt", "w");
+
+	for (;;)
 	{
 
-		if (iclock() - lastRecv > TIME_INTEVAL && true == connected)
+		if (iclock() - lastRecv > TIME_INTEVAL)
 		{
-			printf("ERROR: time is up.\n");
+			printf("INFO: time is up.\n");
 			break;
 		}
-
+		
 		if (iclock() - lastUpdate > TIME_UPDATE_INTERVAL)
 		{
 			lastUpdate = iclock();
@@ -130,47 +148,38 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 		{
 			// update the last recv time
 			lastRecv = iclock();
-			printf("INFO: recv a package.\n");
 			ikcp_input(kcp1, mesg, n);
 		}
 
-		switch (workStatus)
+		if (false == getHead)
 		{
-		case WORK_KCPRECV:
-			//printf("INFO: in kcprecv.\n");
 			posBuff = ikcp_recv(kcp1, mesg, sizeof(mesg));
-			if (posBuff > 0)
+			if (posBuff <= 0)
 			{
-				printf("\n***********************************************\n");
-				printf("INFO: kcprecv buff\n");
-				printf("%s\n", mesg);
-				printf("\n***********************************************\n");
-				connected = true;
-				workStatus = WORK_DECODE;
+				// not recv head, continue loop
+				continue;
 			}
-			else if (true == connected)
-			{
-				workStatus = WORK_UPDATEBUFF;
-			}
-			else
-			{
-				workStatus = WORK_KCPRECV;
-			}
-			break;
-		case WORK_DECODE:
-			//printf("INFO: in decode.\n");
+			// recv head, didn't need to enter this if again.
+			getHead = true;
+			printf("\n***********************************************\n");
+			printf("INFO: kcprecv buff\n");
+			printf("%s\n", mesg);
+			printf("\n***********************************************\n");
+
 			n = decode(mesg, posBuff, filename);
+
 			if (0 == n)
 			{
-				fp = fopen(filename.c_str(), "r");
+				fp = fopen(filename.c_str(), "rb");
 				if (NULL == fp)
 				{
-					n = snprintf(mesg, sizeof(mesg), "HTTP/1.0 400 Bad Request\r\n\r\n");
-					n = ikcp_send(kcp1, mesg, n);
+					posBuff = snprintf(mesg, sizeof(mesg), "HTTP/1.0 400 Bad Request\r\n\r\n");
+					n = ikcp_send(kcp1, mesg, posBuff);
 					if (n < 0)
 					{
 						printf("ERROR: ikcp_send.\n");
-						workStatus = WORK_ERROR;
+						// break for loop
+						break;
 					}
 					else
 					{
@@ -178,84 +187,79 @@ dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen, int mode)
 						printf("INFO: send buff\n");
 						printf("%s\n", mesg);
 						printf("\n***********************************************\n");
-						workStatus = WORK_COMPLETE;
+						// has send everythin
+						hasError = true;
 					}
 				}
 				else
 				{
-					fseek(fp, 0L, SEEK_END);
-					fileSize = ftell(fp);
-					fseek(fp, 0L, SEEK_SET);
-					n = snprintf(mesg, sizeof(mesg), "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n", fileSize);
-					total = fread(mesg + n, 1, sizeof(mesg)-n, fp);
-					n += total;
+					fileSize = getFileSize(fp);
+					posBuff = snprintf(mesg, sizeof(mesg), "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n", fileSize);
+					total = fread(mesg + posBuff, 1, sizeof(mesg)-posBuff, fp);
+					posBuff += total;
 					printf("\n***********************************************\n");
-					printf("INFO: send content %d send buff\n",
-						n - strlen("HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n"));
+					printf("INFO: send content %d send buff\n", total);
 					printf("%s\n", mesg);
 					printf("\n***********************************************\n");
-					n = ikcp_send(kcp1, mesg, n);
+					n = ikcp_send(kcp1, mesg, posBuff);
+					Fwrite(mesg, 1, posBuff, msg_fp);
 
 					if (n < 0)
 					{
-						workStatus = WORK_ERROR;
 						printf("ERROR: ikcp_send.\n");
+						// break while
+						break;
 					}
 					else
 					{
-						workStatus = WORK_KCPRECV;
+						// 进入下列的send
+						hasError = false;
 					}
 				}
 			}
 			else
 			{
-				workStatus = WORK_ERROR;
-			}
-			break;
-		case WORK_SEND:
-			//printf("INFO: in send.\n");
-			n = ikcp_send(kcp1, mesg, posBuff);
-			if (n < 0)
-			{
-				workStatus = WORK_SEND;
-			}
-			else
-			{
-				total += posBuff;
-				workStatus = WORK_KCPRECV;
-			}
-			break;
-		case WORK_UPDATEBUFF:
-			//printf("INFO: in updatebuff.\n");
-			if (NULL == fp)
-			{
-				workStatus = WORK_KCPRECV;
+				// break for loop
+				printf("ERROR: when decode recv buffer.\n");
 				break;
 			}
-			//printf("INFO: in update buff.\n");
-			posBuff = fread(mesg, 1, sizeof(mesg), fp);
-			if (0 == posBuff)
+		}
+
+
+		if (false == hasError)
+		{
+			IUINT32 ts = iclock();
+			while (iclock() - ts < 5)
 			{
-				printf("ERROR: error fread 0 byte, maye end of file.\n");
-				workStatus = WORK_ERROR;
+				posBuff = fread(mesg, 1, sizeof(mesg), fp);
+				if (0 == posBuff)
+				{
+					printf("ERROR: error fread 0 byte, maye end of file.\n");
+					fclose(fp);
+					hasError = true;
+					// 继续下一次循环
+					break;
+				}
+				n = ikcp_send(kcp1, mesg, posBuff);
+				//  record what was sent
+				Fwrite(mesg, 1, posBuff, msg_fp);
+				if (n < 0)
+				{
+					printf("ERROR: ikcp_send %d.\n", n);
+					hasError = true;
+					// 继续下一次循环
+					break;
+				}
+				else
+				{
+					printf("INFO: kcp_send %d.\n", posBuff);
+					total += posBuff;
+				}
 			}
-			else
-			{
-				printf("INFO: send %d bytes.\n", posBuff);
-				workStatus = WORK_SEND;
-			}
-			break;
-		case WORK_ERROR:
-			workStatus = WORK_KCPRECV;
-			break;
-		case WORK_COMPLETE:
-			workStatus = WORK_KCPRECV;
-			break;
-		default:
-			printf("ERROR: unknown.\n");
-			break;
 		}
 	}
+	printf("INFO: total resend %d.\n", kcp1->xmit);
+	fclose(msg_fp);
 	ikcp_release(kcp1);
 	printf("INFO: total sent %d\n", total);
 }
@@ -270,10 +274,7 @@ int main()
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERV_PORT);
 
-	struct timeval tv_out;
-	tv_out.tv_sec = 0;
-	tv_out.tv_usec = 10000; // wait for 10ms
-	Setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
+	Setnonblocking(sockfd);
 
 	Bind(sockfd, (SA *)&servaddr, sizeof(servaddr));
 	while (true)

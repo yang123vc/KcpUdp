@@ -37,3 +37,5 @@ Sendto(int fd, const void *ptr, size_t nbytes, int flags,
 const struct sockaddr *sa, socklen_t salen);
 void
 Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen);
+void
+Setnonblocking(int sockfd);

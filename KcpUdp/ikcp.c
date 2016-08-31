@@ -527,7 +527,7 @@ int ikcp_send(ikcpcb *kcp, const char *buffer, int len)
 
 
 //---------------------------------------------------------------------
-// parse ack
+// parse, 更新rx_srtt, rx_rttval, rx_rto
 //---------------------------------------------------------------------
 static void ikcp_update_ack(ikcpcb *kcp, IINT32 rtt)
 {
@@ -546,6 +546,7 @@ static void ikcp_update_ack(ikcpcb *kcp, IINT32 rtt)
 	kcp->rx_rto = _ibound_(kcp->rx_minrto, rto, IKCP_RTO_MAX);
 }
 
+// 更新snd_una为snd_buf的序列号或者是下一个准备发送序列号
 static void ikcp_shrink_buf(ikcpcb *kcp)
 {
 	struct IQUEUEHEAD *p = kcp->snd_buf.next;
@@ -556,7 +557,7 @@ static void ikcp_shrink_buf(ikcpcb *kcp)
 		kcp->snd_una = kcp->snd_nxt;
 	}
 }
-
+// 删除snd_buf中对应序列号的信息
 static void ikcp_parse_ack(ikcpcb *kcp, IUINT32 sn)
 {
 	struct IQUEUEHEAD *p, *next;
@@ -579,6 +580,7 @@ static void ikcp_parse_ack(ikcpcb *kcp, IUINT32 sn)
 	}
 }
 
+// 根据una删除snd_buf中的信息
 static void ikcp_parse_una(ikcpcb *kcp, IUINT32 una)
 {
 	struct IQUEUEHEAD *p, *next;
@@ -886,7 +888,7 @@ static char *ikcp_encode_seg(char *ptr, const IKCPSEG *seg)
 	ptr = ikcp_encode32u(ptr, seg->len);
 	return ptr;
 }
-
+// 返回还可以接收多少个包，相当于tcp的发送buffer还剩多少字节
 static int ikcp_wnd_unused(const ikcpcb *kcp)
 {
 	if (kcp->nrcv_que < kcp->rcv_wnd) {
